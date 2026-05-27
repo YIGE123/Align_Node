@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.25
+
+- Fixed GitHub Actions/Linux test runs by using the same default `0.5` dimensions scale as macOS for non-Windows platforms.
+- Kept Windows dimensions scaling unchanged at `2/3` for both axes.
+
 ## 1.10.24
 
 - Increased Windows vertical dimensions scaling to `2/3` so Up alignment has enough visual height to stack overlapping columns without vertical overlap.

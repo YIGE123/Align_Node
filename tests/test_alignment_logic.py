@@ -537,6 +537,18 @@ class AlignmentLogicTest(unittest.TestCase):
         finally:
             align.platform.system = original_platform_system
 
+    def test_linux_default_dimensions_scale_matches_macos_for_ci(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Linux"
+            node = Node(0, 0, width=100, height=100, reported_width=180, reported_height=400)
+
+            self.assertEqual(align.node_width(node), 90)
+            self.assertEqual(align.node_height(node), 200)
+        finally:
+            align.platform.system = original_platform_system
+
     def test_windows_left_align_keeps_gap_with_scaled_dimensions(self):
         original_platform_system = align.platform.system
 

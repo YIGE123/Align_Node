@@ -2,7 +2,7 @@ bl_info = {
     "name": "Align_Node",
     "author": "Anthem",
     "maintainer": "Anthem",
-    "version": (1, 10, 24),
+    "version": (1, 10, 25),
     "blender": (5, 1, 1),
     "location": "Node Editor > Command/Ctrl + Arrow Keys",
     "description": "Align selected nodes with configurable PureRef style shortcuts.",
@@ -26,7 +26,7 @@ COMPACT_HEADER_NODE_IDS = {
 MAC_DIMENSIONS_SCALE = 0.5
 WINDOWS_DIMENSIONS_X_SCALE = 2.0 / 3.0
 WINDOWS_DIMENSIONS_Y_SCALE = 2.0 / 3.0
-DEFAULT_DIMENSIONS_SCALE = 1.0
+DEFAULT_DIMENSIONS_SCALE = MAC_DIMENSIONS_SCALE
 MAX_STABILIZE_PASSES = 12
 POSITION_EPSILON = 0.001
 
