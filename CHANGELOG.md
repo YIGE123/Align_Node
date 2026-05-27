@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.10.21
+
+- Changed compact Position and Boolean input nodes to use `dimensions.y * 0.5` instead of a fixed `76` unit override, matching the same visual-height scale used by Normal and taller Geometry Nodes.
+
+## 1.10.20
+
+- Expanded `Debug Selected Node Bounds` with height-rule diagnostics, alternative height candidates, parent/collapse state, and socket metadata so compact node visual bounds can be calibrated from Blender output instead of guessed.
+
+## 1.10.19
+
+- Added compact visual-height handling for `FunctionNodeInputBool` so Boolean and Position input nodes use the same visual bounds during Up/Down alignment.
+- Added regression coverage for aligning compact Position, Boolean, and Normal nodes to the same visual bottom edge.
+
 ## 1.10.18
 
 - Changed single Frame plus outside-node selections to use the normal node alignment rules, so the topmost/rightmost/bottommost/leftmost selected item becomes the target instead of treating the Frame as a fixed anchor.

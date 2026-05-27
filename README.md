@@ -17,7 +17,7 @@ Blender node editor alignment add-on for Geometry Nodes, shader/material nodes, 
 - Multiple selected Frames follow the same alignment and spacing rules as regular nodes, including when selected child nodes are also included.
 - Repeated Frame-internal alignment restores Frame and child-node positions to avoid accumulated drift.
 - Frame-internal boundary alignment uses a separate `40` unit safe margin only as a movement limit, so shortcuts do not push already-stable child nodes in the opposite direction.
-- Uses compact visual bounds for the Geometry Nodes Position input so bottom alignment matches what is visible in Blender.
+- Uses scaled visual bounds for small input nodes such as Position and Boolean so bottom alignment matches what is visible in Blender.
 
 ## Installation
 
@@ -53,7 +53,7 @@ After changing shortcuts, click `Apply Node Align Shortcuts`.
 
 Use `Debug Selected Node Bounds` in the add-on preferences or the node editor menu. The add-on writes the selected nodes' calculated bounds to a Blender text block named `PureRef_Node_Bounds_Debug` and also copies the output to the clipboard when Blender allows it.
 
-The debug output includes `location_absolute` when Blender exposes it. After a Frame-internal alignment, it also includes the last internal Frame alignment diagnostics so boundary and drift behavior can be compared before and after the operation.
+The debug output includes `location_absolute` when Blender exposes it, the height rule used by the add-on, alternative height candidates, parent/collapse state, and socket metadata. After a Frame-internal alignment, it also includes the last internal Frame alignment diagnostics so boundary and drift behavior can be compared before and after the operation.
 
 ## Development
 

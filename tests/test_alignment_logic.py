@@ -531,7 +531,52 @@ class AlignmentLogicTest(unittest.TestCase):
             bl_idname="GeometryNodeInputPosition",
         )
 
-        self.assertEqual(align.node_height(position), 76)
+        self.assertEqual(align.node_height(position), 50)
+
+    def test_boolean_node_uses_visual_compact_height(self):
+        boolean = Node(
+            0,
+            0,
+            height=100,
+            reported_height=100,
+            bl_idname="FunctionNodeInputBool",
+        )
+
+        self.assertEqual(align.node_height(boolean), 50)
+
+    def test_compact_output_nodes_down_align_to_same_visual_bottom(self):
+        position = Node(
+            30.002,
+            -36.050,
+            width=140,
+            height=100,
+            reported_width=280,
+            reported_height=100,
+            bl_idname="GeometryNodeInputPosition",
+        )
+        boolean = Node(
+            199.002,
+            -36.050,
+            width=140,
+            height=100,
+            reported_width=280,
+            reported_height=100,
+            bl_idname="FunctionNodeInputBool",
+        )
+        normal = Node(
+            368.002,
+            -36.050,
+            width=140,
+            height=100,
+            reported_width=280,
+            reported_height=144,
+            bl_idname="GeometryNodeInputNormal",
+        )
+
+        align.align_down([position, boolean, normal])
+
+        self.assertEqual(bottom(position), bottom(boolean))
+        self.assertEqual(bottom(boolean), bottom(normal))
 
     def test_down_align_position_node_uses_visual_bottom(self):
         set_position = Node(

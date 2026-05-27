@@ -2,7 +2,7 @@ bl_info = {
     "name": "Align_Node",
     "author": "Anthem",
     "maintainer": "Anthem",
-    "version": (1, 10, 18),
+    "version": (1, 10, 21),
     "blender": (5, 1, 1),
     "location": "Node Editor > Command/Ctrl + Arrow Keys",
     "description": "Align selected nodes with configurable PureRef style shortcuts.",
@@ -19,7 +19,10 @@ BASE_GAP = 24.0
 SAFETY_GAP = 5.0
 FRAME_INNER_MARGIN = 40.0
 FALLBACK_HEIGHT = 120.0
-COMPACT_NODE_HEIGHT = 76.0
+COMPACT_HEADER_NODE_IDS = {
+    "GeometryNodeInputPosition",
+    "FunctionNodeInputBool",
+}
 DIMENSIONS_SCALE = 0.5
 MAX_STABILIZE_PASSES = 12
 POSITION_EPSILON = 0.001
@@ -46,6 +49,14 @@ def format_xy(value):
     if value is None:
         return "None"
     return f"x={value[0]:.3f}, y={value[1]:.3f}"
+
+
+def format_debug_value(value):
+    if value is None:
+        return "None"
+    if isinstance(value, float):
+        return f"{value:.3f}"
+    return str(value)
 
 
 def append_alignment_debug(lines):
@@ -119,19 +130,72 @@ def node_height(node):
     if is_frame_node(node):
         return fallback_height
     if dimension_height and dimension_height > 1.0:
-        if is_compact_header_node(node, dimension_height):
-            return COMPACT_NODE_HEIGHT
         if dimension_height <= FALLBACK_HEIGHT:
+            if is_compact_header_node(node, dimension_height):
+                return float(dimension_height) * DIMENSIONS_SCALE
             return float(dimension_height)
         return float(dimension_height) * DIMENSIONS_SCALE
     return fallback_height
 
 
+def node_height_rule(node):
+    dimensions = getattr(node, "dimensions", None)
+    dimension_height = getattr(dimensions, "y", 0.0) if dimensions else 0.0
+    height = getattr(node, "height", 0.0)
+    if is_frame_node(node):
+        return "frame height"
+    if dimension_height and dimension_height > 1.0:
+        if dimension_height <= FALLBACK_HEIGHT:
+            if is_compact_header_node(node, dimension_height):
+                return f"compact dimensions.y * {DIMENSIONS_SCALE}"
+            return "raw dimensions.y"
+        return f"dimensions.y * {DIMENSIONS_SCALE}"
+    if height and height > 1.0:
+        return "node.height fallback"
+    return "fallback height"
+
+
 def is_compact_header_node(node, dimension_height):
     return (
         dimension_height <= 100.0
-        and getattr(node, "bl_idname", "") in {"GeometryNodeInputPosition"}
+        and getattr(node, "bl_idname", "") in COMPACT_HEADER_NODE_IDS
     )
+
+
+def debug_height_candidates(node):
+    dimensions = getattr(node, "dimensions", None)
+    dimension_height = float(getattr(dimensions, "y", 0.0)) if dimensions else 0.0
+    height = float(getattr(node, "height", 0.0) or 0.0)
+    candidates = [
+        ("calculated", node_height(node)),
+        ("node.height", height),
+        ("dimensions.y", dimension_height),
+    ]
+    if dimension_height:
+        candidates.append(("dimensions.y * 0.5", dimension_height * DIMENSIONS_SCALE))
+    if dimension_height:
+        candidates.append(("compact dimensions.y * 0.5", dimension_height * DIMENSIONS_SCALE))
+    return candidates
+
+
+def debug_socket_lines(node, socket_collection_name, sockets):
+    lines = [f"    {socket_collection_name}: count={len(sockets)}"]
+    for socket_index, socket in enumerate(sockets):
+        socket_location = vector_xy(getattr(socket, "location", None))
+        lines.append(
+            "      "
+            f"[{socket_index}] name={getattr(socket, 'name', '')!r}, "
+            f"id={getattr(socket, 'identifier', '')!r}, "
+            f"type={getattr(socket, 'type', '')}, "
+            f"bl_idname={getattr(socket, 'bl_idname', '')}, "
+            f"enabled={getattr(socket, 'enabled', None)}, "
+            f"hide={getattr(socket, 'hide', None)}, "
+            f"hide_value={getattr(socket, 'hide_value', None)}, "
+            f"is_linked={getattr(socket, 'is_linked', None)}, "
+            f"display_shape={getattr(socket, 'display_shape', '')}, "
+            f"location={format_xy(socket_location)}"
+        )
+    return lines
 
 
 def is_frame_node(node):
@@ -652,20 +716,35 @@ class NODE_OT_pureref_debug_bounds(Operator):
             dimensions_y = getattr(dimensions, "y", None) if dimensions else None
             box = edges(node)
             absolute = node_location_absolute(node)
+            raw_top = float(node.location.y)
 
             lines.extend(
                 (
                     f"[{index}] {node.name!r} ({node.bl_idname})",
+                    f"    label: {getattr(node, 'label', '')!r}",
+                    f"    type: {getattr(node, 'type', None)}",
+                    f"    parent: {getattr(getattr(node, 'parent', None), 'name', None)!r}",
+                    f"    hide/collapse: {getattr(node, 'hide', None)}",
                     f"    location: x={node.location.x:.3f}, y={node.location.y:.3f}",
                     f"    location_absolute: {format_xy(absolute)}",
                     f"    width/height: width={getattr(node, 'width', None)}, height={getattr(node, 'height', None)}",
                     f"    dimensions: x={dimensions_x}, y={dimensions_y}",
+                    f"    calculated size: width={node_width(node):.3f}, height={node_height(node):.3f}",
+                    f"    height rule: {node_height_rule(node)}",
                     "    bounds: "
                     f"left={box['left']:.3f}, right={box['right']:.3f}, "
                     f"top={box['top']:.3f}, bottom={box['bottom']:.3f}",
-                    "",
+                    "    height candidates:",
                 )
             )
+            for label, height in debug_height_candidates(node):
+                lines.append(
+                    f"      {label}: height={format_debug_value(height)}, "
+                    f"bottom_if_top_is_location_y={format_debug_value(raw_top - height)}"
+                )
+            lines.extend(debug_socket_lines(node, "inputs", getattr(node, "inputs", [])))
+            lines.extend(debug_socket_lines(node, "outputs", getattr(node, "outputs", [])))
+            lines.append("")
         lines.append("--- Pair Overlap Diagnostics ---")
         for first_index, first in enumerate(nodes):
             first_box = edges(first)
