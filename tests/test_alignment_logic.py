@@ -46,10 +46,24 @@ class Dimensions:
 
 
 class Node:
-    def __init__(self, x, y, width=100, height=80, reported_width=None, reported_height=None):
+    def __init__(
+        self,
+        x,
+        y,
+        width=100,
+        height=80,
+        reported_width=None,
+        reported_height=None,
+        bl_idname="ShaderNode",
+        node_type="DEFAULT",
+        parent=None,
+    ):
         self.location = Location(x, y)
         self.width = width
         self.height = height
+        self.bl_idname = bl_idname
+        self.type = node_type
+        self.parent = parent
         self.dimensions = Dimensions(
             reported_width if reported_width is not None else width,
             reported_height if reported_height is not None else height,
@@ -69,6 +83,224 @@ def left(node):
 
 
 class AlignmentLogicTest(unittest.TestCase):
+    def test_windows_default_shortcut_uses_ctrl_shift(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Windows"
+            self.assertTrue(align.default_ctrl())
+            self.assertTrue(align.default_shift())
+            self.assertFalse(align.use_command_key())
+        finally:
+            align.platform.system = original_platform_system
+
+    def test_frame_only_selection_keeps_frame_out_of_alignment(self):
+        frame = Node(0, 300, width=500, height=400, bl_idname="NodeFrame", node_type="FRAME")
+        child_a = Node(20, 260, parent=frame)
+        child_b = Node(260, 200, parent=frame)
+
+        selected = [frame, child_a, child_b]
+
+        primary_nodes, internal_groups = align.split_alignment_selection(selected)
+
+        self.assertEqual(primary_nodes, [])
+        self.assertEqual(internal_groups, [(frame, [child_a, child_b])])
+
+    def test_frame_with_outside_node_aligns_as_top_level_node(self):
+        frame = Node(0, 300, width=500, height=400, bl_idname="NodeFrame", node_type="FRAME")
+        child = Node(20, 260, parent=frame)
+        outside = Node(900, 250)
+
+        selected = [frame, child, outside]
+
+        self.assertEqual(align.alignment_nodes_from_selection(selected), [frame, outside])
+
+    def test_frame_with_outside_and_inside_nodes_splits_internal_group(self):
+        frame = Node(0, 300, width=500, height=400, bl_idname="NodeFrame", node_type="FRAME")
+        child_a = Node(20, 260, parent=frame)
+        child_b = Node(260, 200, parent=frame)
+        outside = Node(900, 250)
+
+        primary_nodes, internal_groups = align.split_alignment_selection([frame, child_a, child_b, outside])
+
+        self.assertEqual(primary_nodes, [frame, outside])
+        self.assertEqual(internal_groups, [(frame, [child_a, child_b])])
+
+    def test_frame_with_outside_without_inside_nodes_has_no_internal_group(self):
+        frame = Node(0, 300, width=500, height=400, bl_idname="NodeFrame", node_type="FRAME")
+        child = Node(20, 260, parent=frame)
+        outside = Node(900, 250)
+
+        primary_nodes, internal_groups = align.split_alignment_selection([frame, outside])
+
+        self.assertEqual(primary_nodes, [frame, outside])
+        self.assertEqual(internal_groups, [])
+        self.assertEqual(child.location.x, 20)
+
+    def test_frame_only_selection_aligns_internal_nodes_without_moving_frame(self):
+        frame = Node(0, 300, width=500, height=400, bl_idname="NodeFrame", node_type="FRAME")
+        child_a = Node(30, -30, parent=frame)
+        child_b = Node(199, -180, parent=frame)
+
+        primary_nodes, internal_groups = align.split_alignment_selection([frame, child_a, child_b])
+
+        self.assertEqual(primary_nodes, [])
+        self.assertEqual(internal_groups, [(frame, [child_a, child_b])])
+        align.align_internal_nodes_to_frame(frame, internal_groups[0][1], "LEFT")
+
+        self.assertEqual((frame.location.x, frame.location.y), (0, 300))
+        self.assertEqual(left(child_a), 30)
+        self.assertEqual(left(child_b), 30)
+
+    def test_frame_with_outside_node_aligns_to_topmost_node(self):
+        frame = Node(-2884.5, -501.5, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        outside = Node(30, -30, width=140, height=100, reported_width=280, reported_height=352)
+
+        align.stabilize_alignment([frame, outside], align.align_up)
+
+        self.assertEqual(align.edges(frame)["top"], align.edges(outside)["top"])
+        self.assertEqual(outside.location.y, -30)
+
+    def test_frame_with_outside_node_keeps_horizontal_gap_from_frame(self):
+        frame = Node(0, 300, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        outside = Node(900, 100, width=140, height=100, reported_width=280, reported_height=352)
+
+        align.stabilize_frame_anchored_alignment([frame, outside], [frame], "LEFT")
+
+        self.assertEqual(frame.location.x, 0)
+        self.assertGreaterEqual(left(outside), right(frame) + align.gap_size())
+
+    def test_frame_with_left_outside_node_does_not_cross_frame_on_right_align(self):
+        frame = Node(0, 300, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        outside = Node(-300, 100, width=140, height=100, reported_width=280, reported_height=352)
+
+        align.stabilize_frame_anchored_alignment([frame, outside], [frame], "RIGHT")
+
+        self.assertEqual(frame.location.x, 0)
+        self.assertLessEqual(right(outside), left(frame) - align.gap_size())
+
+    def test_frame_with_right_outside_node_does_not_cross_frame_on_left_align(self):
+        frame = Node(0, 300, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        outside = Node(900, 100, width=140, height=100, reported_width=280, reported_height=352)
+
+        align.stabilize_frame_anchored_alignment([frame, outside], [frame], "LEFT")
+
+        self.assertEqual(frame.location.x, 0)
+        self.assertGreaterEqual(left(outside), right(frame) + align.gap_size())
+
+    def test_mixed_frame_selection_is_stable_after_repeated_alignment(self):
+        frame = Node(0, 300, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        child_a = Node(30, -30, width=140, height=100, reported_width=280, reported_height=352, parent=frame)
+        child_b = Node(199, -30, width=140, height=100, reported_width=280, reported_height=100, parent=frame)
+        outside = Node(900, 260, width=140, height=100, reported_width=280, reported_height=100)
+
+        primary_nodes, internal_groups = align.split_alignment_selection([frame, child_a, child_b, outside])
+        align.stabilize_frame_anchored_alignment(primary_nodes, [frame], "UP")
+        for group_frame, internal_nodes in internal_groups:
+            align.align_internal_nodes_to_frame(group_frame, internal_nodes, "UP")
+        first_positions = [(node.location.x, node.location.y) for node in [frame, child_a, child_b, outside]]
+
+        align.stabilize_frame_anchored_alignment(primary_nodes, [frame], "UP")
+        for group_frame, internal_nodes in internal_groups:
+            align.align_internal_nodes_to_frame(group_frame, internal_nodes, "UP")
+
+        self.assertEqual([(node.location.x, node.location.y) for node in [frame, child_a, child_b, outside]], first_positions)
+
+    def test_selected_internal_nodes_align_to_frame_boundary_after_frame_alignment(self):
+        frame = Node(100, 500, width=500, height=400, bl_idname="NodeFrame", node_type="FRAME")
+        child_a = Node(80, -80, width=100, height=80, parent=frame)
+        child_b = Node(260, -180, width=100, height=80, parent=frame)
+
+        align.align_internal_nodes_to_frame(frame, [child_a, child_b], "LEFT")
+        self.assertEqual(left(child_a), align.frame_inner_margin())
+        self.assertEqual(left(child_b), align.frame_inner_margin())
+
+        child_a.location.x = 80
+        child_b.location.x = 360
+        align.align_internal_nodes_to_frame(frame, [child_a, child_b], "UP")
+        self.assertEqual(child_a.location.y, -align.frame_inner_margin())
+        self.assertEqual(child_b.location.y, -align.frame_inner_margin())
+
+        child_a.location.y = -80
+        child_b.location.y = -220
+        align.align_internal_nodes_to_frame(frame, [child_a, child_b], "RIGHT")
+        self.assertEqual(right(child_a), align.node_width(frame) - align.frame_inner_margin())
+        self.assertEqual(right(child_b), align.node_width(frame) - align.frame_inner_margin())
+
+        child_a.location.x = 80
+        child_b.location.x = 260
+        align.align_internal_nodes_to_frame(frame, [child_a, child_b], "DOWN")
+        self.assertEqual(bottom(child_a), -align.node_height(frame) + align.frame_inner_margin())
+        self.assertEqual(bottom(child_b), -align.node_height(frame) + align.frame_inner_margin())
+
+    def test_internal_down_align_uses_frame_inner_bottom_gap(self):
+        frame = Node(-3062, -249, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        set_position = Node(30, -30, width=140, height=100, reported_width=280, reported_height=352, parent=frame)
+        position = Node(199, -30, width=140, height=100, reported_width=280, reported_height=100, parent=frame)
+
+        align.align_internal_nodes_to_frame(frame, [set_position, position], "DOWN")
+
+        self.assertEqual(bottom(position), bottom(set_position))
+        self.assertLessEqual(bottom(position), -align.node_height(frame) + align.frame_inner_margin())
+
+    def test_internal_alignment_restores_frame_state(self):
+        frame = Node(-3062, -249, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        child = Node(199, -30, width=140, height=100, reported_width=280, reported_height=100, parent=frame)
+        frame_state = align.snapshot_frame_state(frame)
+
+        align.align_internal_nodes_to_frame(frame, [child], "DOWN")
+
+        self.assertEqual(align.snapshot_frame_state(frame), frame_state)
+
+    def test_internal_alignment_is_stable_when_repeated(self):
+        frame = Node(-3062, -249, width=369, height=236, bl_idname="NodeFrame", node_type="FRAME")
+        set_position = Node(30, -30, width=140, height=100, reported_width=280, reported_height=352, parent=frame)
+        position = Node(199, -30, width=140, height=100, reported_width=280, reported_height=100, parent=frame)
+
+        for direction in ("LEFT", "RIGHT", "UP", "DOWN"):
+            set_position.location.x = 30
+            set_position.location.y = -30
+            position.location.x = 199
+            position.location.y = -30
+            align.align_internal_nodes_to_frame(frame, [set_position, position], direction)
+            first_state = (
+                align.snapshot_frame_state(frame),
+                snapshot_locations := align.snapshot_locations([set_position, position]),
+            )
+
+            align.align_internal_nodes_to_frame(frame, [set_position, position], direction)
+
+            self.assertEqual(align.snapshot_frame_state(frame), first_state[0])
+            self.assertEqual(align.snapshot_locations([set_position, position]), snapshot_locations)
+
+    def test_multiple_frames_align_like_regular_nodes(self):
+        left_frame = Node(-3495, -125, width=369, height=162, bl_idname="NodeFrame", node_type="FRAME")
+        right_frame = Node(-3060, -232, width=369, height=242, bl_idname="NodeFrame", node_type="FRAME")
+
+        align.stabilize_alignment([left_frame, right_frame], align.align_down)
+
+        self.assertEqual(bottom(left_frame), bottom(right_frame))
+
+    def test_multiple_frame_selection_returns_frames_as_primary_nodes(self):
+        left_frame = Node(-3495, -125, width=369, height=162, bl_idname="NodeFrame", node_type="FRAME")
+        right_frame = Node(-3060, -232, width=369, height=242, bl_idname="NodeFrame", node_type="FRAME")
+
+        primary_nodes, internal_groups = align.split_alignment_selection([left_frame, right_frame])
+
+        self.assertEqual(primary_nodes, [left_frame, right_frame])
+        self.assertEqual(internal_groups, [])
+
+    def test_multiple_frame_selection_with_children_keeps_frames_primary(self):
+        left_frame = Node(-3495, -125, width=369, height=162, bl_idname="NodeFrame", node_type="FRAME")
+        right_frame = Node(-3060, -232, width=369, height=242, bl_idname="NodeFrame", node_type="FRAME")
+        left_child = Node(30, -30, parent=left_frame)
+        right_child = Node(30, -30, parent=right_frame)
+
+        primary_nodes, internal_groups = align.split_alignment_selection([left_frame, right_frame, left_child, right_child])
+
+        self.assertEqual(primary_nodes, [left_frame, right_frame])
+        self.assertEqual(internal_groups, [(left_frame, [left_child]), (right_frame, [right_child])])
+
     def test_gap_size_uses_preferences_when_available(self):
         original_context = align.bpy.context
         preferences = types.SimpleNamespace(gap=80)
@@ -283,10 +515,72 @@ class AlignmentLogicTest(unittest.TestCase):
 
         self.assertEqual(align.node_height(node), 200)
 
+    def test_node_height_uses_small_dimensions_without_scaling_for_compact_nodes(self):
+        collapsed_node = Node(0, 0, height=100, reported_height=76)
+        compact_node = Node(0, 0, height=100, reported_height=100)
+
+        self.assertEqual(align.node_height(collapsed_node), 76)
+        self.assertEqual(align.node_height(compact_node), 100)
+
+    def test_position_node_uses_visual_compact_height(self):
+        position = Node(
+            0,
+            0,
+            height=100,
+            reported_height=100,
+            bl_idname="GeometryNodeInputPosition",
+        )
+
+        self.assertEqual(align.node_height(position), 76)
+
+    def test_down_align_position_node_uses_visual_bottom(self):
+        set_position = Node(
+            -3000.690,
+            -473.019,
+            width=140,
+            height=100,
+            reported_width=280,
+            reported_height=352,
+            bl_idname="GeometryNodeSetPosition",
+        )
+        position = Node(
+            -2831.690,
+            -30,
+            width=140,
+            height=100,
+            reported_width=280,
+            reported_height=100,
+            bl_idname="GeometryNodeInputPosition",
+        )
+
+        align.align_down([set_position, position])
+
+        self.assertEqual(bottom(position), bottom(set_position))
+
     def test_node_width_prefers_dimensions_when_available(self):
         node = Node(0, 0, width=100, reported_width=180)
 
         self.assertEqual(align.node_width(node), 90)
+
+    def test_node_width_uses_unscaled_dimensions_when_platform_reports_actual_width(self):
+        node = Node(0, 0, width=140, reported_width=140)
+
+        self.assertEqual(align.node_width(node), 140)
+
+    def test_frame_bounds_use_frame_width_and_height(self):
+        frame = Node(
+            0,
+            300,
+            width=500,
+            height=400,
+            reported_width=1000,
+            reported_height=1000,
+            bl_idname="NodeFrame",
+            node_type="FRAME",
+        )
+
+        self.assertEqual(align.node_width(frame), 500)
+        self.assertEqual(align.node_height(frame), 400)
 
     def test_left_align_uses_dimensions_width_to_prevent_overlap(self):
         left_node = Node(0, 100, width=180, reported_width=400)
