@@ -13,6 +13,7 @@ Blender node editor alignment add-on for Geometry Nodes, shader/material nodes, 
 - Preserves the non-alignment axis. Up/Down never shifts nodes sideways, and Left/Right never shifts nodes vertically.
 - Avoids visual overlap while keeping the layout as close as possible to the requested alignment.
 - Treats selected Frames as top-level nodes when they are aligned with outside nodes.
+- Uses platform-aware visual bounds so node spacing remains consistent on macOS and Windows, including Windows-specific dimensions scaling.
 - Aligns selected nodes inside a selected Frame to the Frame's inner boundary while preserving the configured gap.
 - Multiple selected Frames follow the same alignment and spacing rules as regular nodes, including when selected child nodes are also included.
 - Repeated Frame-internal alignment restores Frame and child-node positions to avoid accumulated drift.

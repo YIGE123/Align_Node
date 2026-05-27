@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.10.24
+
+- Increased Windows vertical dimensions scaling to `2/3` so Up alignment has enough visual height to stack overlapping columns without vertical overlap.
+- Kept macOS dimensions scaling unchanged.
+- Added Windows regression coverage for repeated Separate XYZ and Color Ramp columns aligned upward.
+
+## 1.10.23
+
+- Refined Windows visual bounds scaling: horizontal dimensions now use `2/3` of `dimensions.x`, while vertical dimensions use `0.5` of `dimensions.y`.
+- Kept macOS dimensions scaling unchanged.
+- Added Windows regression coverage for Color Ramp spacing and bottom alignment with scaled visual bounds.
+
+## 1.10.22
+
+- Fixed Windows node spacing by using raw `node.dimensions` for visual bounds on Windows while keeping macOS on the existing `0.5` dimensions scale.
+- Added regression coverage for Windows left alignment so horizontal gap spacing is preserved with Windows-reported dimensions.
+
 ## 1.10.21
 
 - Changed compact Position and Boolean input nodes to use `dimensions.y * 0.5` instead of a fixed `76` unit override, matching the same visual-height scale used by Normal and taller Geometry Nodes.

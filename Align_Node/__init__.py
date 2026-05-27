@@ -2,7 +2,7 @@ bl_info = {
     "name": "Align_Node",
     "author": "Anthem",
     "maintainer": "Anthem",
-    "version": (1, 10, 21),
+    "version": (1, 10, 24),
     "blender": (5, 1, 1),
     "location": "Node Editor > Command/Ctrl + Arrow Keys",
     "description": "Align selected nodes with configurable PureRef style shortcuts.",
@@ -23,7 +23,10 @@ COMPACT_HEADER_NODE_IDS = {
     "GeometryNodeInputPosition",
     "FunctionNodeInputBool",
 }
-DIMENSIONS_SCALE = 0.5
+MAC_DIMENSIONS_SCALE = 0.5
+WINDOWS_DIMENSIONS_X_SCALE = 2.0 / 3.0
+WINDOWS_DIMENSIONS_Y_SCALE = 2.0 / 3.0
+DEFAULT_DIMENSIONS_SCALE = 1.0
 MAX_STABILIZE_PASSES = 12
 POSITION_EPSILON = 0.001
 
@@ -76,6 +79,22 @@ def default_shift():
     return True
 
 
+def dimensions_x_scale():
+    if platform.system() == "Darwin":
+        return MAC_DIMENSIONS_SCALE
+    if platform.system() == "Windows":
+        return WINDOWS_DIMENSIONS_X_SCALE
+    return DEFAULT_DIMENSIONS_SCALE
+
+
+def dimensions_y_scale():
+    if platform.system() == "Darwin":
+        return MAC_DIMENSIONS_SCALE
+    if platform.system() == "Windows":
+        return WINDOWS_DIMENSIONS_Y_SCALE
+    return DEFAULT_DIMENSIONS_SCALE
+
+
 def key_items():
     return (
         ("LEFT_ARROW", "Left Arrow", ""),
@@ -118,7 +137,7 @@ def node_width(node):
     if dimension_width and dimension_width > 1.0:
         if dimension_width <= fallback_width * 1.25:
             return float(dimension_width)
-        return float(dimension_width) * DIMENSIONS_SCALE
+        return float(dimension_width) * dimensions_x_scale()
     return fallback_width
 
 
@@ -132,9 +151,9 @@ def node_height(node):
     if dimension_height and dimension_height > 1.0:
         if dimension_height <= FALLBACK_HEIGHT:
             if is_compact_header_node(node, dimension_height):
-                return float(dimension_height) * DIMENSIONS_SCALE
+                return float(dimension_height) * dimensions_y_scale()
             return float(dimension_height)
-        return float(dimension_height) * DIMENSIONS_SCALE
+        return float(dimension_height) * dimensions_y_scale()
     return fallback_height
 
 
@@ -147,9 +166,9 @@ def node_height_rule(node):
     if dimension_height and dimension_height > 1.0:
         if dimension_height <= FALLBACK_HEIGHT:
             if is_compact_header_node(node, dimension_height):
-                return f"compact dimensions.y * {DIMENSIONS_SCALE}"
+                return f"compact dimensions.y * {dimensions_y_scale()}"
             return "raw dimensions.y"
-        return f"dimensions.y * {DIMENSIONS_SCALE}"
+        return f"dimensions.y * {dimensions_y_scale()}"
     if height and height > 1.0:
         return "node.height fallback"
     return "fallback height"
@@ -172,9 +191,9 @@ def debug_height_candidates(node):
         ("dimensions.y", dimension_height),
     ]
     if dimension_height:
-        candidates.append(("dimensions.y * 0.5", dimension_height * DIMENSIONS_SCALE))
-    if dimension_height:
-        candidates.append(("compact dimensions.y * 0.5", dimension_height * DIMENSIONS_SCALE))
+        scale = dimensions_y_scale()
+        candidates.append((f"dimensions.y * {scale}", dimension_height * scale))
+        candidates.append((f"compact dimensions.y * {scale}", dimension_height * scale))
     return candidates
 
 

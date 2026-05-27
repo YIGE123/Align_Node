@@ -515,6 +515,147 @@ class AlignmentLogicTest(unittest.TestCase):
 
         self.assertEqual(align.node_height(node), 200)
 
+    def test_windows_scales_dimensions_width_to_visual_width(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Windows"
+            node = Node(0, 0, width=140, reported_width=210)
+
+            self.assertEqual(align.node_width(node), 140)
+        finally:
+            align.platform.system = original_platform_system
+
+    def test_windows_scales_dimensions_height_to_visual_height(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Windows"
+            node = Node(0, 0, height=100, reported_height=296)
+
+            self.assertAlmostEqual(align.node_height(node), 197.33333333333331)
+        finally:
+            align.platform.system = original_platform_system
+
+    def test_windows_left_align_keeps_gap_with_scaled_dimensions(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Windows"
+            separate_xyz = Node(
+                3105.287,
+                -728.936,
+                width=140,
+                height=100,
+                reported_width=210,
+                reported_height=260,
+            )
+            color_ramp = Node(
+                3285.287,
+                -728.936,
+                width=240,
+                height=100,
+                reported_width=360,
+                reported_height=296,
+            )
+            attribute = Node(
+                3667.135,
+                -728.936,
+                width=140,
+                height=100,
+                reported_width=210,
+                reported_height=243,
+            )
+
+            align.align_left([separate_xyz, color_ramp, attribute])
+
+            self.assertGreaterEqual(left(color_ramp), right(separate_xyz) + align.gap_size())
+            self.assertGreaterEqual(left(attribute), right(color_ramp) + align.gap_size())
+        finally:
+            align.platform.system = original_platform_system
+
+    def test_windows_down_align_uses_scaled_height_for_color_ramp(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Windows"
+            separate_xyz = Node(
+                2966.296,
+                -612.136,
+                width=140,
+                height=100,
+                reported_width=210,
+                reported_height=260,
+            )
+            color_ramp = Node(
+                3157.788,
+                -750.486,
+                width=240,
+                height=100,
+                reported_width=360,
+                reported_height=296,
+            )
+            attribute = Node(
+                3454.741,
+                -644.864,
+                width=140,
+                height=100,
+                reported_width=210,
+                reported_height=243,
+            )
+
+            align.align_down([separate_xyz, color_ramp, attribute])
+
+            self.assertEqual(bottom(separate_xyz), bottom(color_ramp))
+            self.assertEqual(bottom(color_ramp), bottom(attribute))
+        finally:
+            align.platform.system = original_platform_system
+
+    def test_windows_up_align_uses_scaled_height_to_prevent_vertical_overlap(self):
+        original_platform_system = align.platform.system
+
+        try:
+            align.platform.system = lambda: "Windows"
+            top_separate = Node(
+                2099.279,
+                -596.829,
+                width=140,
+                height=100,
+                reported_width=210,
+                reported_height=260,
+            )
+            top_ramp = Node(
+                2376.310,
+                -589.931,
+                width=240,
+                height=100,
+                reported_width=360,
+                reported_height=296,
+            )
+            lower_separate = Node(
+                2119.555,
+                -831.365,
+                width=140,
+                height=100,
+                reported_width=210,
+                reported_height=260,
+            )
+            lower_ramp = Node(
+                2358.555,
+                -867.365,
+                width=240,
+                height=100,
+                reported_width=360,
+                reported_height=296,
+            )
+
+            align.align_up([top_separate, top_ramp, lower_separate, lower_ramp])
+
+            self.assertFalse(align.boxes_too_close(align.edges(top_separate), align.edges(lower_separate), align.gap_size()))
+            self.assertFalse(align.boxes_too_close(align.edges(top_ramp), align.edges(lower_ramp), align.gap_size()))
+        finally:
+            align.platform.system = original_platform_system
+
     def test_node_height_uses_small_dimensions_without_scaling_for_compact_nodes(self):
         collapsed_node = Node(0, 0, height=100, reported_height=76)
         compact_node = Node(0, 0, height=100, reported_height=100)
